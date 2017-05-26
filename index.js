@@ -9,6 +9,9 @@ class ServerlessPlugin {
         this.serverless = serverless;
         this.options = options;
 
+        AWS.config.httpOptions = {timeout: 3000};
+        this.configureProxy();
+
         this.kms = new AWS.KMS({
             region: this.serverless.service.provider.region
         });
@@ -25,6 +28,7 @@ class ServerlessPlugin {
             .then(() => Promise.all(
                 this.serverless.service.getAllFunctions().map((functionName) => {
                     const functionObject = this.serverless.service.getFunction(functionName);
+                    functionObject.kmsKeyArn = this.kmsKeyArn;
                     return this.encryptVarsIn(functionObject, functionName);
                 })
             ));
@@ -54,20 +58,20 @@ class ServerlessPlugin {
      * @returns {Promise<string>} KMS Key ID
      */
     ensureKmsKeyExists() {
-        this.serverless.cli.log('ensureKmsKeyExists...');
         const alias = 'alias/' + this.serverless.service.custom.kmsKeyId;
+        this.serverless.cli.log(`Checking for KMS key ${this.serverless.service.custom.kmsKeyId}`);
 
         return new Promise((resolve, reject) => {
             this.kms.describeKey({KeyId: alias}, (err, data) => {
                 if (err) {
                     if (err.code != 'NotFoundException') {
-                        console.info('failed to query key:', err);
+                        console.error('failed to query key:', err);
                         reject(err);
                     } else {
-                        resolve(null);
+                        resolve(false);
                     }
                 } else {
-                    console.info('found key:', data.KeyMetadata.KeyId);
+                    this.kmsKeyArn = data.KeyMetadata.Arn;
                     resolve(data.KeyMetadata.KeyId);
                 }
             });
@@ -75,6 +79,7 @@ class ServerlessPlugin {
             if (keyId) {
                 return keyId;
             } else {
+                console.info('got a key, now need account ID...');
                 return this.serverless.providers.aws.getAccountId()
                     .then(this.createKmsKey.bind(this))
                     .then(this.createKmsAlias.bind(this, alias));
@@ -152,6 +157,7 @@ class ServerlessPlugin {
                     reject(err);
                 } else {
                     this.serverless.cli.log('found key: ' + data.KeyMetadata.KeyId);
+                    this.kmsKeyArn = data.KeyMetadata.Arn;
                     resolve(data.KeyMetadata.KeyId);
                 }
             });
@@ -173,8 +179,43 @@ class ServerlessPlugin {
                     reject(err);
                 } else {
                     resolve(data.CiphertextBlob.toString('base64'));
+                    // resolve({ 'encrypted': 'true', 'value': data.CiphertextBlob.toString('base64')});
                 }
             });
+        });
+    }
+
+    configureProxy() {
+        const proxyAddress = process.env.HTTPS_PROXY || process.env.HTTP_PROXY;
+        let agent;
+
+        if (proxyAddress) {
+            console.info('-------------------------------------------------------');
+            console.info('    configuring proxy:', proxyAddress);
+            let opts = require('url').parse(proxyAddress);
+            opts.secureProtocol = 'TLSv1_method';
+            opts.ciphers = 'ALL';
+
+            if (process.env.HTTPS_PROXY) {
+                const HttpsProxyAgent = require('https-proxy-agent');
+                agent = new HttpsProxyAgent(opts);
+            } else {
+                agent = require('proxy-agent')(opts);
+            }
+        } else {
+            // work-around DynamoDB network issues - https://github.com/aws/aws-sdk-js/issues/862#issuecomment-218223804
+            let https = require('https');
+            agent = new https.Agent({
+                ciphers: 'ALL',
+                secureProtocol: 'TLSv1_method'
+            });
+        }
+
+        AWS.config.update({
+            httpOptions: {
+                // proxy: proxyAddress,
+                agent: agent
+            }
         });
     }
 }
