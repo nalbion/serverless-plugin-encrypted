@@ -1,0 +1,15 @@
+{
+  "name": "serverless-plugin-encrypted",
+  "version": "1.0.0",
+  "description": "A Serverless plugin which encrypts Lambda environment variables using an KMS key which is automatically generated for each stage",
+  "main": "index.js",
+  "repository": "https://bitbucket.org/catsagj/serverless-plugin-encrypted.git",
+  "author": "Nicholas Albion <nicholas.albion@justice.nsw.gov.au>",
+  "license": "MIT",
+  "keywords": [
+    "serverless",
+    "serverless plugin",
+    "kms",
+    "lambda encrypted"
+  ]
+}
