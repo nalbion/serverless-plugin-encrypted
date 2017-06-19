@@ -28,7 +28,7 @@ class ServerlessPlugin {
             .then(() => Promise.all(
                 this.serverless.service.getAllFunctions().map((functionName) => {
                     const functionObject = this.serverless.service.getFunction(functionName);
-                    functionObject.kmsKeyArn = this.kmsKeyArn;
+                    functionObject.awsKmsKeyArn = this.kmsKeyArn;
                     return this.encryptVarsIn(functionObject, functionName);
                 })
             ));
