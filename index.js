@@ -113,8 +113,6 @@ class ServerlessPlugin {
      * @returns {Promise<string>} KMS Key ID
      */
     createKmsKey(awsAccountId) {
-        const lambdaRoleArn = this.serverless.service.provider.role;
-
         const KeyPolicy = {
             Version: '2012-10-17',
             Id: 'key-default-1',
@@ -122,8 +120,7 @@ class ServerlessPlugin {
                 Sid: 'Allow administration of the key',
                 Effect: 'Allow',
                 Principal: { 'AWS': `arn:aws:iam::${awsAccountId}:root` },
-                Action: [ 'kms:Create*', 'kms:Describe*', 'kms:Enable*', 'kms:List*', 'kms:Put*', 'kms:Update*', 'kms:Revoke*',
-                    'kms:Disable*', 'kms:Get*', 'kms:Delete*', 'kms:ScheduleKeyDeletion', 'kms:CancelKeyDeletion' ],
+                Action: [ 'kms:*' ],
                 Resource: '*'
             }, {
                 Sid: 'CI can encrypt at deployment',
@@ -131,16 +128,8 @@ class ServerlessPlugin {
                 Principal: '*',
                 Action: 'kms:Encrypt',
                 Resource: '*'
-            }, {
-                Sid: 'Lambda can decrypt',
-                Effect: 'Allow',
-                Principal: (this.serverless.service.provider.stage == 'DEV') ? '*' : {'AWS': lambdaRoleArn},
-                // Action: 'kms:Decrypt',
-                Action: [ 'kms:Create*', 'kms:Describe*', 'kms:Enable*', 'kms:List*', 'kms:Put*', 'kms:Update*', 'kms:Revoke*',
-                    'kms:Disable*', 'kms:Get*', 'kms:Delete*', 'kms:ScheduleKeyDeletion', 'kms:CancelKeyDeletion' ],
-                Resource: '*'
-            }
-            ]};
+            }]
+        };
 
         this.serverless.cli.log('Creating KMS key:\n' + JSON.stringify(KeyPolicy, null, 2));
 

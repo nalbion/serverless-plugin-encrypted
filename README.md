@@ -18,6 +18,7 @@ service: my-service
 provider:
   name: aws
   runtime: nodejs6.10
+  role: lambda-role
   stage: DEV
   region: ap-southeast-2
   
@@ -47,3 +48,8 @@ If it finds an entry in `custom.encrypted` with a matching name it will use the 
 Note: The original values in the provider and functions will be discarded. 
 ie `functions.my-function.environment.SECRET_PASSWORD` has been set to `${self:custom.encrypted.SECRET_PASSWORD}` 
 in the example above, but it could be anything really, although it is a recommended convention.
+
+When the plugin creates the KMS key, a policy will be created for it which allows:
+
+ - the account root user to manage the key
+ - anybody to encrypt 
