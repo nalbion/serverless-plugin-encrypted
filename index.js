@@ -17,7 +17,8 @@ class ServerlessPlugin {
         });
 
         this.hooks = {
-            'before:deploy:createDeploymentArtifacts': this.encryptVars.bind(this)
+            'package:createDeploymentArtifacts': this.encryptVars.bind(this),
+            'invoke:local:loadEnvVars': this.encryptVars.bind(this)
         };
     }
 
