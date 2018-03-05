@@ -9,7 +9,9 @@ class ServerlessPlugin {
         this.serverless = serverless;
         this.options = options;
 
-        AWS.config.httpOptions = {timeout: 3000};
+        if (process.env.AWS_TIMEOUT) {
+            AWS.config.httpOptions = {timeout: parseInt(process.env.AWS_TIMEOUT)};
+        }
         this.configureProxy();
 
         this.kms = new AWS.KMS({
