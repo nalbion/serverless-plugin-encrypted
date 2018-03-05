@@ -40,7 +40,7 @@ class ServerlessPlugin {
 
             for (let key in this.serverless.service.custom.encrypted) {
                 // this.serverless.cli.log(`encrypting process.env.${key} for ${name}`);
-                if (this.serverless.service.custom.encrypted[key]) {
+                if (this.serverless.service.custom.encrypted[key] && key in root.environment) {
                     tasks.push(
                         this.encrypt(this.serverless.service.custom.encrypted[key]).then(encrypted => {
                             this.serverless.cli.log(`encrypted ${key} for ${name}: ${encrypted}`);
