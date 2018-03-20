@@ -14,16 +14,16 @@ class ServerlessPlugin {
         }
         this.configureProxy();
 
-        this.kms = new AWS.KMS({
-            region: this.serverless.service.provider.region
-        });
-
         this.hooks = {
             'before:deploy:createDeploymentArtifacts': this.encryptVars.bind(this)
         };
     }
 
     encryptVars() {
+        this.kms = new AWS.KMS({
+            region: this.serverless.service.provider.region
+        });
+
         this.serverless.cli.log('Encrypting Lambda environment variables...');
         return this.ensureKmsKeyExists()
             .then(() => this.encryptVarsIn(this.serverless.service.provider, 'all function'))
