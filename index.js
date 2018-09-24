@@ -74,6 +74,7 @@ class ServerlessPlugin {
                     }
                 } else {
                     this.kmsKeyArn = data.KeyMetadata.Arn;
+                    this.autoAddIAMRoleStatements.call(this);
                     resolve(data.KeyMetadata.KeyId);
                 }
             });
@@ -115,33 +116,31 @@ class ServerlessPlugin {
      * @returns {Promise<string>} KMS Key ID
      */
     createKmsKey(awsAccountId) {
-        const KeyPolicy = {
-            Version: '2012-10-17',
-            Id: 'key-default-1',
-            Statement: [{
-                Sid: 'Allow administration of the key',
-                Effect: 'Allow',
-                Principal: { 'AWS': `arn:aws:iam::${awsAccountId}:root` },
-                Action: [ 'kms:*' ],
-                Resource: '*'
-            }, {
-                Sid: 'CI can encrypt at deployment',
-                Effect: 'Allow',
-                Principal: '*',
-                Action: 'kms:Encrypt',
-                Resource: '*'
-            }]
-        };
+        this.serverless.cli.log('Getting custom KMS Key Policy...');
+        let KeyPolicy;
+        if (this.serverless.service.custom.kmsKeyPolicy) {
+            KeyPolicy = this.serverless.service.custom.kmsKeyPolicy;
+            this.serverless.cli.log('Creating KMS key with Policy:\n' + JSON.stringify(KeyPolicy, null, 2));
+        } else {
+            this.serverless.cli.log('KMS Key Policy not found at custom, will be set the AWS Default Policy!')
+        }
 
-        this.serverless.cli.log('Creating KMS key:\n' + JSON.stringify(KeyPolicy, null, 2));
-
+        let tags = [{ TagKey: 'Environment', TagValue: this.serverless.service.provider.stage }];
+        const { kmsKeyTags } = this.serverless.service.custom;
+        if (kmsKeyTags) {
+            Object.keys(kmsKeyTags).forEach(key => {
+                tags.push({
+                    TagKey: key,
+                    TagValue: kmsKeyTags[key]
+                });
+            });
+        }
+        
         return new Promise((resolve, reject) => {
             this.kms.createKey({
-                Policy: JSON.stringify(KeyPolicy),
+                Policy: KeyPolicy ? JSON.stringify(KeyPolicy) : undefined,
                 Description: 'Used to protect secrets used by Lambda functions',
-                Tags: [
-                    {TagKey: 'Environment', TagValue: this.serverless.service.provider.stage}
-                ]
+                Tags: tags
             }, (err, data) => {
                 if (err) {
                     console.error(err);
@@ -149,6 +148,9 @@ class ServerlessPlugin {
                 } else {
                     this.serverless.cli.log('found key: ' + data.KeyMetadata.KeyId);
                     this.kmsKeyArn = data.KeyMetadata.Arn;
+
+                    this.autoAddIAMRoleStatements.call(this);
+
                     resolve(data.KeyMetadata.KeyId);
                 }
             });
@@ -174,6 +176,16 @@ class ServerlessPlugin {
                 }
             });
         });
+    }
+
+    autoAddIAMRoleStatements() {
+        if (this.serverless.service.custom.kmsKeyAddRoleStatement) {
+            this.serverless.service.provider.iamRoleStatements.push({
+                Effect: 'Allow',
+                Action: [ 'kms:Decrypt', 'kms:Encrypt' ],
+                Resource: this.kmsKeyArn
+            });
+        }
     }
 
     configureProxy() {
