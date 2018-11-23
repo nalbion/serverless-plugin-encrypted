@@ -15,7 +15,7 @@ class ServerlessPlugin {
         this.configureProxy();
 
         this.hooks = {
-            'before:deploy:createDeploymentArtifacts': this.encryptVars.bind(this)
+            'package:createDeploymentArtifacts': this.encryptVars.bind(this)
         };
     }
 
