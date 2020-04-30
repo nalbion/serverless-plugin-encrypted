@@ -1,6 +1,6 @@
 {
   "name": "serverless-plugin-encrypted",
-  "version": "1.0.6",
+  "version": "1.0.7",
   "description": "A Serverless plugin which encrypts Lambda environment variables using an KMS key which is automatically generated for each stage",
   "main": "index.js",
   "repository": "https://github.com/nalbion/serverless-plugin-encrypted.git",
@@ -11,5 +11,8 @@
     "serverless plugin",
     "kms",
     "lambda encrypted"
-  ]
+  ],
+  "dependencies": {
+    "aws-sdk": "^2.339.0"
+  }
 }
