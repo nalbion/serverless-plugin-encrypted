@@ -1,6 +1,6 @@
 'use strict';
 
-var fs = require('fs'),
+const fs = require('fs'),
     path = require('path'),
     AWS = require('aws-sdk');
 
@@ -10,7 +10,7 @@ class ServerlessPlugin {
         this.options = options;
 
         if (process.env.AWS_TIMEOUT) {
-            AWS.config.httpOptions = {timeout: parseInt(process.env.AWS_TIMEOUT)};
+            AWS.config.httpOptions = { timeout: parseInt(process.env.AWS_TIMEOUT) };
         }
         this.configureProxy();
 
@@ -19,21 +19,21 @@ class ServerlessPlugin {
         };
     }
 
-    encryptVars() {
+    async encryptVars() {
         this.kms = new AWS.KMS({
             region: this.serverless.service.provider.region
         });
 
         this.serverless.cli.log('Encrypting Lambda environment variables...');
-        return this.ensureKmsKeyExists()
-            .then(() => this.encryptVarsIn(this.serverless.service.provider, 'all function'))
-            .then(() => Promise.all(
-                this.serverless.service.getAllFunctions().map((functionName) => {
-                    const functionObject = this.serverless.service.getFunction(functionName);
-                    functionObject.awsKmsKeyArn = this.kmsKeyArn;
-                    return this.encryptVarsIn(functionObject, functionName);
-                })
-            ));
+        await this.ensureKmsKeyExists();
+        await this.encryptVarsIn(this.serverless.service.provider, 'all function'));
+        await Promise.all(
+            this.serverless.service.getAllFunctions().map((functionName) => {
+                const functionObject = this.serverless.service.getFunction(functionName);
+                functionObject.awsKmsKeyArn = this.kmsKeyArn;
+                return this.encryptVarsIn(functionObject, functionName);
+            })
+        ));
     }
 
     encryptVarsIn(root, name) {
@@ -59,11 +59,11 @@ class ServerlessPlugin {
     /**
      * @returns {Promise<string>} KMS Key ID
      */
-    ensureKmsKeyExists() {
+    async ensureKmsKeyExists() {
         const alias = 'alias/' + this.serverless.service.custom.kmsKeyId;
         this.serverless.cli.log(`Checking for KMS key ${this.serverless.service.custom.kmsKeyId}`);
 
-        return new Promise((resolve, reject) => {
+        let keyId = await new Promise((resolve, reject) => {
             this.kms.describeKey({KeyId: alias}, (err, data) => {
                 if (err) {
                     if (err.code != 'NotFoundException') {
@@ -77,19 +77,16 @@ class ServerlessPlugin {
                     resolve(data.KeyMetadata.KeyId);
                 }
             });
-        }).then((keyId) => {
-            if (keyId) {
-                return keyId;
-            } else {
-                console.info('got a key, now need account ID...');
-                return this.serverless.providers.aws.getAccountId()
-                    .then(this.createKmsKey.bind(this))
-                    .then(this.createKmsAlias.bind(this, alias));
-            }
-        }).then(kmsKeyId => {
-            this.serverless.cli.log('using KMS key "' + alias + '": ' + kmsKeyId);
-            this.kmsKeyId = kmsKeyId;
         });
+        
+        if (!keyId) {
+            const accountId = await this.serverless.providers.aws.getAccountId();
+            keyId = await this.createKmsKey(accountId);
+            await this.createKmsAlias(alias, keyId);
+        }
+        
+        this.serverless.cli.log('using KMS key "' + alias + '": ' + keyId);
+        this.kmsKeyId = keyId;
     }
 
     /**
@@ -140,7 +137,7 @@ class ServerlessPlugin {
                 Policy: JSON.stringify(KeyPolicy),
                 Description: 'Used to protect secrets used by Lambda functions',
                 Tags: [
-                    {TagKey: 'Environment', TagValue: this.serverless.service.provider.stage}
+                    { TagKey: 'Environment', TagValue: this.serverless.service.provider.stage }
                 ]
             }, (err, data) => {
                 if (err) {
